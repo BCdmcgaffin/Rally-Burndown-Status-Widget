@@ -1,0 +1,301 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+  <head>
+    <style type="text/css">
+      body,html {
+        font-family: helvetica,arial,sans-serif;
+        font-size: 90%;
+      }
+      #djProgress {
+        width: 90%;
+        text-align: center;
+        margin: 100px 5% auto 5%;
+      }
+      table {
+        width: 100%;
+      }
+      thead tr {
+        background-color: #dee8ea;
+        height: 14px;
+      }
+      th {
+        font-size: 12px;
+        padding: 4px 0px;
+        font-weight: normal;
+      }
+      th.name {
+        width: 40%;
+      }
+      td.name {
+        padding-left: 10px;
+      }
+      td.tasks, td.hours {
+        text-align: right;
+        padding-right: 20px;
+      }      
+      td.green {
+        width: 20%;
+        text-align: right;
+        padding-right: 15px;
+        background-color: #a7ffa7;
+      }
+      td.red {
+        width: 20%;
+        text-align: right;
+        padding-right: 15px;
+        background-color: #ffa7a7;
+      }      
+      tr td {
+        border-bottom: 1px solid #cacaca;
+      }
+      tr {
+        background-color: transparent;
+      }
+      td {
+        font-size: 12px;
+        padding: 3px 4px;
+      }
+    </style>
+    
+    <link rel="stylesheet" 
+        type="text/css" 
+        href="http://ajax.googleapis.com/ajax/libs/dojo/1.3/dijit/themes/soria/soria.css" />
+  
+              
+    <script type="text/javascript" 
+        src="http://ajax.googleapis.com/ajax/libs/dojo/1.3/dojo/dojo.xd.js"
+        djConfig="parseOnLoad: true">
+    </script>
+
+    <script type="text/javascript" charset="utf-8">
+      dojo.require("dijit.ProgressBar");
+      dojo.require("dojo.parser");
+      
+      const HOURS_PER_DAY = 5;      
+      
+      const ITERATION_URL = "https://rally1.rallydev.com/slm/webservice/1.15/iteration/@@@iterationId@@@.js";
+
+      var userItems = [];
+      var totalHoursLeft;
+      var totalHoursInSprint;
+      var counter = 0;
+      
+      
+      /**
+       * Fetches user capacities from the server until all capacities have been fetched.
+       */
+      function fetchNextUserCapacity(iterationId, userCapacities) {
+        var capacityRef = userCapacities.pop();
+        
+        if (capacityRef != null) {
+          dojo.xhrGet({
+              url: capacityRef,
+              handleAs: "json",
+              load: function(response, ioArgs) {
+                var username = response.UserIterationCapacity.UserName;
+                var capacity = response.UserIterationCapacity.Capacity;
+                
+                fetchTodoLeftForUser(username, iterationId, userCapacities);                
+              }, 
+              error: function(response, ioArgs) {
+                console.error("ERROR! " + response);
+              }
+          });
+        } else {
+          userItems.sort(function(a,b) {
+            return a.name < b.name ? -1 : 1;
+          });
+          
+          // Hide the progress bar, add the table rows.
+          dojo.destroy("djProgress");
+          for (var i = 0; i < userItems.length; i++) {
+            var item = userItems[i];
+            var statusRow = dojo.create("tr", null, "rows");
+            var statusClass = item.todo >= 0 ? "green" : "red";
+            
+            dojo.create("td", {className: "name", innerHTML: item.name}, statusRow);
+            dojo.create("td", {className: "tasks", innerHTML: item.tasks}, statusRow);
+            dojo.create("td", {className: "hours", innerHTML: item.hoursLeft}, statusRow);
+            dojo.create("td", {className: statusClass, innerHTML: item.todo}, statusRow);
+          }
+        }
+      }
+      
+      function fetchTodoLeftForUser(username, iterationId, userCapacities) {
+        const TASKS_URL = "https://rally1.rallydev.com/slm/webservice/1.15/task.js?" +
+                "query=(((Owner%20=%20@@@username@@@)%20and%20" +
+                "(State%20!=%20Completed)) and (Iteration = " + ITERATION_URL + 
+                "))&order=Rank&fetch=true&pagesize=100";
+        if (username != null) {
+          var queryUrl = TASKS_URL.replace("@@@username@@@", username).
+              replace("@@@iterationId@@@", iterationId);
+          
+          dojo.xhrGet({
+            url: queryUrl,
+            handleAs: "json",
+            load: function(response, ioArgs) {
+              var results = response.QueryResult.Results;              
+              var tasksLeft = results.length;
+              var todoLeft = 0;
+              for (var i = 0; i < results.length; i++) {
+                var task = results[i];
+                todoLeft += task.ToDo;
+              }
+              
+              jsProgress.update({progress: ++counter});
+              var overUnder = totalHoursLeft - todoLeft;
+              userItems.push({
+                  name: username.replace("@brightcove.com", ""), 
+                  tasks: tasksLeft, 
+                  todo: overUnder.toFixed(1), 
+                  hoursLeft: todoLeft.toFixed(1)
+                });
+
+              fetchNextUserCapacity(iterationId, userCapacities);
+            },
+            error: function(response, ioArgs) {
+              console.error("ERROR! couldn't load the json: " + response);
+            }
+          })
+        }
+      }
+
+      function fetchDoc() {
+        dojo.xhrGet({
+          url: "https://rally1.rallydev.com/slm/webservice/1.15/iteration.js:current",
+          handleAs: "json",
+          timeout: 5000,
+          load: function(response, ioArgs) {
+            var today = new Date();
+            var endDate = response.Iteration.EndDate;                        
+            var startDate = response.Iteration.StartDate;
+
+            endDate = Date.parseRallyDate(endDate);
+            startDate = Date.parseRallyDate(startDate);
+            
+            var daysInSprint = startDate.getWeekdaysUntil(endDate);
+            totalHoursInSprint = Date.daysToHours(daysInSprint);
+
+            var daysLeft = (today < startDate ? startDate : today).getWeekdaysUntil(endDate);
+            totalHoursLeft = Date.daysToHours(daysLeft);
+
+            var iterationId = response.Iteration.ObjectID;
+
+            // Fill an array with the list of users assigned to this team.
+            var caps = response.Iteration.UserIterationCapacities;
+            var userCapacities = [];
+            for (var i = 0; i < caps.length; i++) {
+              userCapacities.push(caps[i]["_ref"]);
+            }      
+
+            jsProgress.update({maximum: caps.length, progress: 0});
+            fetchNextUserCapacity(iterationId, userCapacities);
+          },
+          error: function(response, ioArgs) {
+            console.debug("error loading iteration json> " + response);
+          }
+        });
+      }
+      
+      /***************************************************************************************************
+       * Date modifications
+       */
+      Date.MILLIS_PER_DAY = 86400000;
+
+      /**
+       * Converts a date value into a number of days.  This is useful for getting the
+       * result of date math operations.
+       */
+      Date.prototype.getDays = function() {
+        return this.getTime() / Date.MILLIS_PER_DAY;
+      };
+
+      /**
+       * Determines the number of weekdays between two dates, inclusive of
+       * both this date and endDate.
+       */
+      Date.prototype.getWeekdaysUntil = function(endDate) {
+        var date = new Date(this.getTime());
+        var weekdays = 0;
+        while (date < endDate) {
+          if (0 < date.getDay() && date.getDay() < 6) {
+            weekdays++;
+          }
+          date.setTime(date.getTime() + Date.MILLIS_PER_DAY);
+        }
+
+        return weekdays;
+      }
+
+      /**
+       * Parses a date string as formatted by Rally and returns a Date.
+       * Format: YYYY-MM-DDTHH:MM:SS.mmmZ"
+       * Example: "2008-12-05T23:59:59.000Z" 
+       */
+      Date.parseRallyDate = function(dateStr) {
+        var months = ['', // intentionally empty.
+            'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+        var re = /^(\d{4,4})-(\d\d)-(\d\d).*/;
+
+        var matches = dateStr.match(re);
+        if (!matches) {
+          return null;
+        }
+
+        var year = matches[1];
+        var month = matches[2];
+        var day = matches[3];
+        var dateStr = months[month*1] + " " + day + ", " + year;
+        var date = Date.parse(dateStr);
+
+        return new Date(date);
+      };
+
+      Date.daysToHours = function(days) {
+        return days * HOURS_PER_DAY;
+      };
+
+      /**
+       * Returns a number fixed at a number of decimal places.
+       * Example: Math.formatNumber(3.1415927, 2) => 3.14
+       */
+      Math.formatNumber = function(expr, decimals) {
+        var str = "" + Math.round( eval(expr) * Math.pow(10,decimals));
+        while (str.length <= decimals) { 
+          str = "0" + str ;
+        } 
+        var decpoint = str.length - decimals; 
+        var result = str.substring(0,decpoint);
+        if (decimals) {
+          result += "." + str.substring(decpoint,str.length);
+        }
+        return result;
+      };      
+    </script>
+    <script type="text/javascript" charset="utf-8">
+      dojo.addOnLoad(fetchDoc);
+    </script>
+    <title>
+      Hours Left Widget for Rally
+    </title>
+  </head>
+  <body class="soria">
+    <table>
+      <thead>
+        <tr >
+          <th class="name">Name</th>
+          <th class="tasks">Tasks Left</th>
+          <th class="hours">Hours Left</th>
+          <th class="hours">Status</th>
+        </tr>
+      </thead>
+      <tbody id="rows">
+      </tbody>
+    </table>
+
+    <div id="djProgress" jsId="jsProgress"
+        dojoType="dijit.ProgressBar"></div>
+  </body>
+</html>

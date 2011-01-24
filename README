@@ -1,0 +1,24 @@
+Rally Burndown Status Widget
+============================
+
+This is a widget for the Rally Dashboard.  Rally is an agile project management webapp.  
+You can find it at http://www.rallydev.com.
+
+The widget will fetch the incomplete tasks for each member of the project selected at the top of the 
+Rally Dashboard page.  Then, the widget will calculate the amount of time left in the sprint and 
+display the variance between the team member's remaining estimated hours of work and the actual amount
+of time left.  If the team member is right on schedule, the status will be a '0'.  If the team member
+is five hours behind schedule, the status will be '-5' and displayed in red.
+
+That's it.  Feel free to fork the code or add suggestions.
+
+Usage
+-----
+1. Login to Rally at http://rally1.rallydev.com
+2. Navigate to the ...
+3. Click the Page Tools dropdown, select Add Panel
+4. Select Custom Panel from the Add Panel popup.  Press Add.
+5. Give your panel a nice Title.
+6. Copy and paste the code from burndown_status_widget.html into the HTML text field.
+7. Press Save.
+
