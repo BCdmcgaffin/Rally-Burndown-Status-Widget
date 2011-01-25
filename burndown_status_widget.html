@@ -71,15 +71,20 @@
       dojo.require("dijit.ProgressBar");
       dojo.require("dojo.parser");
       
+      // Set the number of hours you schedule for sprint work each day.
       const HOURS_PER_DAY = 5;      
       
+      // Set the hostname of your users' email address.  This widget does assume that everyone's email
+      // has the same hostname.
+      const EMAIL_HOSTNAME = "example.com";
+      
+      // URL for fetching Rally iterations.  You should not need to change this.
       const ITERATION_URL = "https://rally1.rallydev.com/slm/webservice/1.15/iteration/@@@iterationId@@@.js";
 
       var userItems = [];
       var totalHoursLeft;
       var totalHoursInSprint;
       var counter = 0;
-      
       
       /**
        * Fetches user capacities from the server until all capacities have been fetched.
@@ -145,7 +150,7 @@
               jsProgress.update({progress: ++counter});
               var overUnder = totalHoursLeft - todoLeft;
               userItems.push({
-                  name: username.replace("@brightcove.com", ""), 
+                  name: username.replace("@" + EMAIL_HOSTNAME, ""), 
                   tasks: tasksLeft, 
                   todo: overUnder.toFixed(1), 
                   hoursLeft: todoLeft.toFixed(1)
