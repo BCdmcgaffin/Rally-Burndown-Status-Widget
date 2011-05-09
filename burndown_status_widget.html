@@ -71,20 +71,15 @@
       dojo.require("dijit.ProgressBar");
       dojo.require("dojo.parser");
       
-      // Set the number of hours you schedule for sprint work each day.
       const HOURS_PER_DAY = 5;      
       
-      // Set the hostname of your users' email address.  This widget does assume that everyone's email
-      // has the same hostname.
-      const EMAIL_HOSTNAME = "example.com";
-      
-      // URL for fetching Rally iterations.  You should not need to change this.
       const ITERATION_URL = "https://rally1.rallydev.com/slm/webservice/1.15/iteration/@@@iterationId@@@.js";
 
       var userItems = [];
       var totalHoursLeft;
       var totalHoursInSprint;
       var counter = 0;
+      
       
       /**
        * Fetches user capacities from the server until all capacities have been fetched.
@@ -150,7 +145,7 @@
               jsProgress.update({progress: ++counter});
               var overUnder = totalHoursLeft - todoLeft;
               userItems.push({
-                  name: username.replace("@" + EMAIL_HOSTNAME, ""), 
+                  name: username.replace("@brightcove.com", ""), 
                   tasks: tasksLeft, 
                   todo: overUnder.toFixed(1), 
                   hoursLeft: todoLeft.toFixed(1)
@@ -221,17 +216,32 @@
        */
       Date.prototype.getWeekdaysUntil = function(endDate) {
         var date = new Date(this.getTime());
+        console.log("today: %s", date);
+        
+        // If the dates are the same, we have one day left.
+        if (this.isSameDayAs(endDate)) {
+          return 1;
+        }
+        
         var weekdays = 0;
-        while (date < endDate) {
+        while (date <= endDate) {
           if (0 < date.getDay() && date.getDay() < 6) {
             weekdays++;
           }
           date.setTime(date.getTime() + Date.MILLIS_PER_DAY);
         }
 
+        console.log("endDate: %s", endDate);
+        console.log("weekdaysUntil: %s", weekdays);
         return weekdays;
       }
-
+      
+      Date.prototype.isSameDayAs = function(date) {
+        return this.getDate() == date.getDate() &&
+            this.getMonth() == date.getMonth() && 
+            this.getFullYear() == date.getFullYear();
+      }
+      
       /**
        * Parses a date string as formatted by Rally and returns a Date.
        * Format: YYYY-MM-DDTHH:MM:SS.mmmZ"
